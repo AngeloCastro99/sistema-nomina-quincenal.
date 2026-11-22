@@ -1,0 +1,158 @@
+﻿@page "/contratos"
+@rendermode InteractiveServer
+@inject Supabase.Client SupabaseClient
+
+<PageTitle>Gestión de Contratos - Sistema de Nómina</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-file-earmark-text-fill me-2"></i> Gestión de Contratos Laborales</h2>
+        <button class="btn btn-primary" @onclick="AbrirModalNuevo">
+            <i class="bi bi-plus-square-fill me-1"></i> Nuevo Contrato
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensajeAlerta))
+    {
+        <div class="alert @tipoAlerta alert-dismissible fade show" role="alert">
+            @mensajeAlerta
+            <button type="button" class="btn-close" @onclick="() => mensajeAlerta = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            @if (contratos == null)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2">Cargando contratos...</p>
+                </div>
+            }
+            else if (!contratos.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p>No hay contratos registrados.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>ID Empleado</th>
+                                <th>Fecha Inicio</th>
+                                <th>Salario Mensual</th>
+                                <th>Sal. Quincenal</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in contratos)
+                            {
+                                <tr>
+                                    <td>@c.Id</td>
+                                    <td><strong>@c.EmpleadoId</strong></td>
+                                    <td>@c.FechaInicio.ToString("dd/MM/yyyy")</td>
+                                    <td>C$ @c.SalarioMensual.ToString("N2")</td>
+                                    <td><span class="text-success fw-bold">C$ @c.SalarioQuincenal.ToString("N2")</span></td>
+                                    <td><span class="badge bg-success">@c.Estado</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (mostrarModal)
+    {
+        <div class="modal show fade d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">Registrar Contrato</h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CerrarModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <EditForm Model="nuevoContrato" OnValidSubmit="GuardarContrato">
+                            <DataAnnotationsValidator />
+                            <div class="mb-3">
+                                <label class="form-label">ID del Empleado *</label>
+                                <InputNumber class="form-control" @bind-Value="nuevoContrato.EmpleadoId" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">ID del Cargo *</label>
+                                <InputNumber class="form-control" @bind-Value="nuevoContrato.CargoId" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">ID Tipo de Contrato (ej. 1) *</label>
+                                <InputNumber class="form-control" @bind-Value="nuevoContrato.TipoContratoId" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Fecha de Inicio *</label>
+                                <InputDate class="form-control" @bind-Value="nuevoContrato.FechaInicio" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Salario Mensual (C$) *</label>
+                                <InputNumber class="form-control" @bind-Value="nuevoContrato.SalarioMensual" />
+                            </div>
+                            <div class="modal-footer px-0 pb-0">
+                                <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                                <button type="submit" class="btn btn-success">Guardar Contrato</button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Contrato>? contratos;
+    private Contrato nuevoContrato = new();
+    private bool mostrarModal = false;
+    private string mensajeAlerta = string.Empty;
+    private string tipoAlerta = "alert-success";
+
+    protected override async Task OnInitializedAsync() => await CargarContratos();
+
+    private async Task CargarContratos()
+    {
+        try
+        {
+            var response = await SupabaseClient.From<Contrato>().Get();
+            contratos = response.Models;
+        }
+        catch (Exception ex)
+        {
+            MostrarAlerta($"Error: {ex.Message}", "alert-danger");
+            contratos = new();
+        }
+    }
+
+    private void AbrirModalNuevo() { nuevoContrato = new() { FechaInicio = DateTime.Today }; mostrarModal = true; }
+    private void CerrarModal() => mostrarModal = false;
+
+    private async Task GuardarContrato()
+    {
+        try
+        {
+            await SupabaseClient.From<Contrato>().Insert(nuevoContrato);
+            MostrarAlerta("¡Contrato registrado con éxito!", "alert-success");
+            mostrarModal = false;
+            await CargarContratos();
+        }
+        catch (Exception ex)
+        {
+            MostrarAlerta($"Error al guardar: {ex.Message}", "alert-danger");
+        }
+    }
+
+    private void MostrarAlerta(string mensaje, string tipo) { mensajeAlerta = mensaje; tipoAlerta = tipo; }
+}

@@ -1,0 +1,146 @@
+﻿@page "/cargos"
+@rendermode InteractiveServer
+@inject Supabase.Client SupabaseClient
+
+<PageTitle>Gestión de Cargos - Sistema de Nómina</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-briefcase-fill me-2"></i> Gestión de Cargos y Puestos</h2>
+        <button class="btn btn-primary" @onclick="AbrirModalNuevo">
+            <i class="bi bi-plus-circle-fill me-1"></i> Nuevo Cargo
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensajeAlerta))
+    {
+        <div class="alert @tipoAlerta alert-dismissible fade show" role="alert">
+            @mensajeAlerta
+            <button type="button" class="btn-close" @onclick="() => mensajeAlerta = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            @if (cargos == null)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2">Cargando cargos...</p>
+                </div>
+            }
+            else if (!cargos.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p>No hay cargos registrados.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombre del Cargo</th>
+                                <th>Descripción</th>
+                                <th>Salario Base Referencia</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var cargo in cargos)
+                            {
+                                <tr>
+                                    <td>@cargo.Id</td>
+                                    <td><strong>@cargo.Nombre</strong></td>
+                                    <td>@(string.IsNullOrEmpty(cargo.Descripcion) ? "Sin descripción" : cargo.Descripcion)</td>
+                                    <td>C$ @cargo.SalarioBaseReferencia.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (mostrarModal)
+    {
+        <div class="modal show fade d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">Registrar Nuevo Cargo</h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CerrarModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <EditForm Model="nuevoCargo" OnValidSubmit="GuardarCargo">
+                            <DataAnnotationsValidator />
+                            <div class="mb-3">
+                                <label class="form-label">Nombre del Cargo *</label>
+                                <InputText class="form-control" @bind-Value="nuevoCargo.Nombre" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Descripción</label>
+                                <InputText class="form-control" @bind-Value="nuevoCargo.Descripcion" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Salario Base Referencia (C$) *</label>
+                                <InputNumber class="form-control" @bind-Value="nuevoCargo.SalarioBaseReferencia" />
+                            </div>
+                            <div class="modal-footer px-0 pb-0">
+                                <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                                <button type="submit" class="btn btn-success">Guardar Cargo</button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Cargo>? cargos;
+    private Cargo nuevoCargo = new();
+    private bool mostrarModal = false;
+    private string mensajeAlerta = string.Empty;
+    private string tipoAlerta = "alert-success";
+
+    protected override async Task OnInitializedAsync() => await CargarCargos();
+
+    private async Task CargarCargos()
+    {
+        try
+        {
+            var response = await SupabaseClient.From<Cargo>().Get();
+            cargos = response.Models;
+        }
+        catch (Exception ex)
+        {
+            MostrarAlerta($"Error: {ex.Message}", "alert-danger");
+            cargos = new();
+        }
+    }
+
+    private void AbrirModalNuevo() { nuevoCargo = new(); mostrarModal = true; }
+    private void CerrarModal() => mostrarModal = false;
+
+    private async Task GuardarCargo()
+    {
+        try
+        {
+            await SupabaseClient.From<Cargo>().Insert(nuevoCargo);
+            MostrarAlerta("¡Cargo guardado con éxito!", "alert-success");
+            mostrarModal = false;
+            await CargarCargos();
+        }
+        catch (Exception ex)
+        {
+            MostrarAlerta($"Error al guardar: {ex.Message}", "alert-danger");
+        }
+    }
+
+    private void MostrarAlerta(string mensaje, string tipo) { mensajeAlerta = mensaje; tipoAlerta = tipo; }
+}

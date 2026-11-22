@@ -1,0 +1,121 @@
+﻿@page "/calcular-planilla"
+@rendermode InteractiveServer
+@inject Supabase.Client SupabaseClient
+@inject NominaCalculatorService CalculatorService
+
+<PageTitle>Generar Planilla Quincenal - Nicaragua</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-calculator-fill me-2"></i> Motor de Cálculo de Planilla Quincenal</h2>
+        <button class="btn btn-success btn-lg" @onclick="GenerarCalculos">
+            <i class="bi bi-lightning-charge-fill me-1"></i> Procesar Cálculos de Ley
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensajeAlerta))
+    {
+        <div class="alert @tipoAlerta alert-dismissible fade show" role="alert">
+            @mensajeAlerta
+            <button type="button" class="btn-close" @onclick="() => mensajeAlerta = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            @if (detallesCalculados == null || !detallesCalculados.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-receipt fs-1"></i>
+                    <p class="mt-2">Haz clic en <strong>"Procesar Cálculos de Ley"</strong> para simular y calcular la quincena de los contratos vigentes.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped align-middle text-end">
+                        <thead class="table-dark text-center">
+                            <tr>
+                                <th>Empleado ID</th>
+                                <th>Sal. Quincenal</th>
+                                <th>Devengado</th>
+                                <th>INSS (7%)</th>
+                                <th>IR Quincenal</th>
+                                <th>Tot. Deducciones</th>
+                                <th class="table-success text-dark">Neto a Recibir</th>
+                                <th>INSS Patr.</th>
+                                <th>INATEC</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var det in detallesCalculados)
+                            {
+                                <tr>
+                                    <td class="text-center"><strong>@det.EmpleadoId</strong></td>
+                                    <td>C$ @det.SalarioBasicoQuincenal.ToString("N2")</td>
+                                    <td>C$ @det.TotalDevengado.ToString("N2")</td>
+                                    <td class="text-danger">C$ @det.InssLaboral.ToString("N2")</td>
+                                    <td class="text-danger">C$ @det.IrLaboral.ToString("N2")</td>
+                                    <td class="text-danger fw-bold">C$ @det.TotalDeducciones.ToString("N2")</td>
+                                    <td class="table-success fw-bold text-success">C$ @det.NetoARecibir.ToString("N2")</td>
+                                    <td>C$ @det.InssPatronal.ToString("N2")</td>
+                                    <td>C$ @det.Inatec.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<PlanillaDetalle> detallesCalculados = new();
+    private string mensajeAlerta = string.Empty;
+    private string tipoAlerta = "alert-success";
+
+    private async Task GenerarCalculos()
+    {
+        try
+        {
+            detallesCalculados.Clear();
+
+            // Consultar contratos activos desde Supabase
+            var response = await SupabaseClient.From<Contrato>()
+                .Filter("estado", Supabase.Postgrest.Constants.Operator.Equals, "Vigente")
+                .Get();
+
+            var contratosVigentes = response.Models;
+
+            if (!contratosVigentes.Any())
+            {
+                MostrarAlerta("No hay contratos vigentes en la base de datos para calcular.", "alert-warning");
+                return;
+            }
+
+            foreach (var contrato in contratosVigentes)
+            {
+                var detalle = new PlanillaDetalle
+                {
+                    EmpleadoId = contrato.EmpleadoId,
+                    SalarioBasicoQuincenal = contrato.SalarioQuincenal,
+                    DiasTrabajados = 15.00m
+                };
+
+                // Aplicar el servicio de cálculo de leyes de Nicaragua (INSS e IR)
+                CalculatorService.CalcularDetallePlanilla(detalle, aplicaInss: true, aplicaIr: true);
+
+                detallesCalculados.Add(detalle);
+            }
+
+            MostrarAlerta("¡Planilla quincenal calculada con éxito bajo la legislación de Nicaragua!", "alert-success");
+        }
+        catch (Exception ex)
+        {
+            MostrarAlerta($"Error al procesar cálculos: {ex.Message}", "alert-danger");
+        }
+    }
+
+    private void MostrarAlerta(string mensaje, string tipo) { mensajeAlerta = mensaje; tipoAlerta = tipo; }
+}

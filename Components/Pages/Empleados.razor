@@ -1,0 +1,217 @@
+﻿@page "/empleados"
+@rendermode InteractiveServer
+@inject Supabase.Client SupabaseClient
+
+<PageTitle>Gestión de Empleados - Sistema de Nómina</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-people-fill me-2"></i> Gestión de Empleados</h2>
+        <button class="btn btn-primary" @onclick="AbrirModalNuevo">
+            <i class="bi bi-person-plus-fill me-1"></i> Nuevo Empleado
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensajeAlerta))
+    {
+        <div class="alert @tipoAlerta alert-dismissible fade show" role="alert">
+            @mensajeAlerta
+            <button type="button" class="btn-close" @onclick="() => mensajeAlerta = string.Empty"></button>
+        </div>
+    }
+
+    <!-- Tabla de Empleados -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            @if (empleados == null)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="text-muted mt-2">Cargando empleados desde Supabase...</p>
+                </div>
+            }
+            else if (!empleados.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p>No hay empleados registrados todavía.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Código</th>
+                                <th>Nombres y Apellidos</th>
+                                <th>Cédula</th>
+                                <th>INSS</th>
+                                <th>Teléfono</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var emp in empleados)
+                            {
+                                <tr>
+                                    <td><strong>@emp.CodigoEmpleado</strong></td>
+                                    <td>@emp.Nombres @emp.Apellidos</td>
+                                    <td>@emp.Cedula</td>
+                                    <td>@(string.IsNullOrEmpty(emp.NumeroInss) ? "N/A" : emp.NumeroInss)</td>
+                                    <td>@(string.IsNullOrEmpty(emp.Telefono) ? "N/A" : emp.Telefono)</td>
+                                    <td>
+                                        <span class="badge @(emp.Estado == "Activo" ? "bg-success" : "bg-secondary")">
+                                            @emp.Estado
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Modal Formulario Nuevo Empleado -->
+    @if (mostrarModal)
+    {
+        <div class="modal show fade d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">Registrar Nuevo Empleado</h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CerrarModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <EditForm Model="nuevoEmpleado" OnValidSubmit="GuardarEmpleado">
+                            <DataAnnotationsValidator />
+
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Código Empleado *</label>
+                                    <InputText class="form-control" @bind-Value="nuevoEmpleado.CodigoEmpleado" placeholder="EMP-001" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Nombres *</label>
+                                    <InputText class="form-control" @bind-Value="nuevoEmpleado.Nombres" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Apellidos *</label>
+                                    <InputText class="form-control" @bind-Value="nuevoEmpleado.Apellidos" />
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label">Cédula *</label>
+                                    <InputText class="form-control" @bind-Value="nuevoEmpleado.Cedula" placeholder="001-XXXXXX-XXXXX" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Número INSS</label>
+                                    <InputText class="form-control" @bind-Value="nuevoEmpleado.NumeroInss" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Género</label>
+                                    <InputSelect class="form-select" @bind-Value="nuevoEmpleado.Genero">
+                                        <option value="M">Masculino</option>
+                                        <option value="F">Femenino</option>
+                                    </InputSelect>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label">Fecha de Nacimiento</label>
+                                    <InputDate class="form-control" @bind-Value="nuevoEmpleado.FechaNacimiento" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Teléfono</label>
+                                    <InputText class="form-control" @bind-Value="nuevoEmpleado.Telefono" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Correo Electrónico</label>
+                                    <InputText class="form-control" @bind-Value="nuevoEmpleado.Correo" />
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">Dirección</label>
+                                    <InputText class="form-control" @bind-Value="nuevoEmpleado.Direccion" />
+                                </div>
+                            </div>
+
+                            <div class="modal-footer mt-4 px-0 pb-0">
+                                <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-save me-1"></i> Guardar Empleado
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Empleado>? empleados;
+    private Empleado nuevoEmpleado = new();
+    private bool mostrarModal = false;
+    private string mensajeAlerta = string.Empty;
+    private string tipoAlerta = "alert-success";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarEmpleados();
+    }
+
+    private async Task CargarEmpleados()
+    {
+        try
+        {
+            var response = await SupabaseClient.From<Empleado>().Get();
+            empleados = response.Models;
+        }
+        catch (Exception ex)
+        {
+            MostrarAlerta($"Error al cargar empleados: {ex.Message}", "alert-danger");
+            empleados = new();
+        }
+    }
+
+    private void AbrirModalNuevo()
+    {
+        nuevoEmpleado = new Empleado
+        {
+            FechaNacimiento = DateTime.Today.AddYears(-25),
+            Estado = "Activo"
+        };
+        mostrarModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        mostrarModal = false;
+    }
+
+    private async Task GuardarEmpleado()
+    {
+        try
+        {
+            await SupabaseClient.From<Empleado>().Insert(nuevoEmpleado);
+            MostrarAlerta("¡Empleado registrado con éxito en Supabase!", "alert-success");
+            mostrarModal = false;
+            await CargarEmpleados();
+        }
+        catch (Exception ex)
+        {
+            MostrarAlerta($"Error al guardar: {ex.Message}", "alert-danger");
+        }
+    }
+
+    private void MostrarAlerta(string mensaje, string tipo)
+    {
+        mensajeAlerta = mensaje;
+        tipoAlerta = tipo;
+    }
+}
